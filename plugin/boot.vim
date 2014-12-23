@@ -6,12 +6,8 @@ if exists('g:loaded_boot')
 endif
 let g:loaded_boot = 1
 
-if !exists('g:classpath_cache')
-  let g:classpath_cache = '~/.cache/vim/classpath'
-endif
-
-if !isdirectory(expand(g:classpath_cache))
-  call mkdir(expand(g:classpath_cache), 'p')
+if !exists('g:boot_nrepl_sessions')
+  let g:boot_nrepl_sessions = {}
 endif
 
 function! s:portfile() abort
@@ -128,22 +124,17 @@ endfunction
 function! s:path() abort
   let conn = s:connect(0)
 
-  let projts = getftime(b:boot_root.'/build.boot')
-  let cache = expand(g:classpath_cache . '/') . substitute(b:boot_root, '[:\/]', '%', 'g')
+  let cachek = b:boot_root
 
-  let ts = getftime(cache)
-  if ts > projts
-    let path = split(get(readfile(cache), 0, ''), ',')
+  if has_key(g:boot_nrepl_sessions, cachek)
+    let path = g:boot_nrepl_sessions[cachek]
 
   elseif has_key(conn, 'path')
-    let ts = +get(conn.eval('(.getStartTime (java.lang.management.ManagementFactory/getRuntimeMXBean))', {'session': ''}), 'value', '-2000')[0:-4]
-    if ts > projts
-      let response = conn.eval(
-            \ '[(System/getProperty "path.separator") (System/getProperty "fake.class.path")]',
-            \ {'session': ''})
-      let path = split(eval(response.value[5:-2]), response.value[2])
-      call writefile([join(path, ',')], cache)
-    endif
+    let response = conn.eval(
+          \ '[(System/getProperty "path.separator") (System/getProperty "fake.class.path")]',
+          \ {'session': ''})
+    let path = split(eval(response.value[5:-2]), response.value[2])
+    let g:boot_nrepl_sessions[cachek] = path
   endif
 
   if !exists('path')
@@ -151,7 +142,7 @@ function! s:path() abort
     if empty(path)
       let path = map(['test', 'src', 'dev-resources', 'resources'], 'b:boot_root."/".v:val')
     endif
-    call writefile([join(path, ',')], cache)
+    let g:boot_nrepl_sessions[cachek] = path
   endif
 
   return path
